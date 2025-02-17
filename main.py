@@ -7,6 +7,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+from dotenv import load_dotenv
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -149,7 +151,14 @@ async def cancel_handler(message: types.Message, state: FSMContext):
     await message.answer('Сессия завершена')
 
 async def main():
-    bot = Bot(token="7856193785:AAFhbj0B8TI33LuXJnwA8PimgwM07PauAg8")
+    load_dotenv()
+
+    bot_token = os.getenv("BOT_TOKEN")
+
+    if not bot_token:
+        raise ValueError("BOT_TOKEN не найден в .env")
+
+    bot = Bot(token=bot_token)
     dp = Dispatcher()
     
     dp.message.register(start_handler, Command('start'))
