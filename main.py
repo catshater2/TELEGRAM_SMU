@@ -22,7 +22,6 @@ class Form(StatesGroup):
     confirm_fio = State()
     bs_number = State()
     stages = State()
-
 def get_city_by_coordinates(latitude, longitude):
     url = f"https://nominatim.openstreetmap.org/reverse?lat={latitude}&lon={longitude}&format=json&accept-language=ru"
     headers = {'User-Agent': 'MyBot/1.0 (contact@example.com)'}
@@ -32,11 +31,22 @@ def get_city_by_coordinates(latitude, longitude):
         data = response.json()
         address = data.get("address", {})
         
-        city = (address.get('city') or address.get('town') or 
-                address.get('village') or address.get('county') or 
-                address.get('state_district') or address.get('region') or 
-                address.get('suburb'))
+        # Приоритетно ищем город
+        city = (address.get('city') or 
+                address.get('town') or 
+                address.get('village') or 
+                address.get('municipality') or 
+                address.get('hamlet') or 
+                address.get('locality'))
         
+        # Если город не найден, возвращаем более общее значение (например, район или регион)
+        if not city:
+            city = (address.get('county') or 
+                    address.get('state_district') or 
+                    address.get('region') or 
+                    address.get('state'))
+        
+        # Если всё ещё не найдено, возвращаем "Локация не определена"
         if not city:
             logger.warning(f"Локация не найдена, полный адрес: {address}")
             return "Локация не определена"
@@ -50,7 +60,6 @@ def save_to_excel(user_data: dict, user_id: int):
     current_date = datetime.now().strftime("%d.%m.%Y %H:%M")
     new_data = pd.DataFrame([{
         'Дата': current_date,
-        'user_id': user_id,
         'Регион': user_data.get('region'),
         'Город': user_data.get('city', 'Не определен'),
         'ФИО': user_data.get('fio'),
@@ -94,7 +103,7 @@ async def process_location(message: types.Message, state: FSMContext):
     await state.update_data(region=city, city=city, location=(latitude, longitude))
     await state.set_state(Form.fio)
     
-    await message.answer(f"✅ Координаты получены!\n🌍 Широта: {latitude}, Долгота: {longitude}\n🏙 Город: {city}\n\nТеперь введите ваше ФИО:")
+    await message.answer(f" Координаты получены!\n Широта: {latitude}, Долгота: {longitude}\n Город: {city}\n\nТеперь введите ваше ФИО:")
 
 async def process_fio(message: types.Message, state: FSMContext):
     fio = message.text.strip()
@@ -123,14 +132,14 @@ async def confirm_fio(message: types.Message, state: FSMContext):
         await message.answer("Введите ваше ФИО заново:")
     elif message.text == "Подтвердить":
         await state.set_state(Form.bs_number)
-        await message.answer("Теперь введите номер базовой станции (например, XX-123456):")
+        await message.answer("Теперь введите номер базовой станции (например, XX123456):")
     else:
         await message.answer("Пожалуйста, выберите 'Подтвердить' или 'Изменить'.")
 
 async def station_number(message: types.Message, state: FSMContext):
     text = message.text.upper().strip()
-    if not re.match(r'^[A-Z]{2}-\d{6}$', text):
-        await message.answer("⚠ Неверный формат номера базовой станции. Введите заново (например, XX-123456).")
+    if not re.match(r'^[A-Z]{2}\d{6}$', text):
+        await message.answer("⚠ Неверный формат номера базовой станции. Введите заново (например, XX123456).")
         return
     
     await state.update_data(bs_number=text)
@@ -143,7 +152,7 @@ async def station_number(message: types.Message, state: FSMContext):
     builder.button(text="✅ Сохранить", callback_data="done")
     builder.adjust(1)
     
-    await message.answer("🔘 Выберите этапы (можно несколько):", reply_markup=builder.as_markup())
+    await message.answer("🔘 Выберите этапы:", reply_markup=builder.as_markup())
 
 async def process_stages(callback: types.CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -171,7 +180,7 @@ async def process_stages(callback: types.CallbackQuery, state: FSMContext):
     
     elif callback.data == 'done':
         if not selected:
-            await callback.answer("Выберите хотя бы один этап!", show_alert=True)
+            await callback.answer("Выберите хотя бы один этап", show_alert=True)
             return
         
         user_data = await state.get_data()
