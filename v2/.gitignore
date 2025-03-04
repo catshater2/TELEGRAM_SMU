@@ -1,4 +1,5 @@
 .env
 progress_data.xlsx
 progress.xlsx
-employees.xlsx
+employees.xlsx.env
+*.xlsx
